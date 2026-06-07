@@ -20,7 +20,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install
-      - run: pnpm --filter shared build
+      - run: pnpm --filter @deployforge/shared build
       - run: pnpm --filter api typecheck
       - run: pnpm --filter web typecheck
 
@@ -37,12 +37,13 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install
+      - run: pnpm --filter @deployforge/shared build
+      - run: pnpm --filter api lint
       - run: pnpm --filter web lint
 
-  build:
-    name: Build
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
-    needs: [typecheck]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v3
@@ -53,7 +54,68 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install
-      - run: pnpm --filter shared build
+      - run: pnpm --filter @deployforge/shared build
+      - name: API unit tests
+        run: pnpm --filter api test
+      - name: Web unit tests
+        run: pnpm --filter web test
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: deployforge
+          POSTGRES_PASSWORD: deployforge
+          POSTGRES_DB: deployforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install
+      - name: Run Prisma migrations
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://deployforge:deployforge@localhost:5432/deployforge
+        run: npx prisma migrate deploy --schema=./prisma/schema.prisma
+      - name: API integration tests
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql://deployforge:deployforge@localhost:5432/deployforge
+          PORT: 4001
+          NODE_ENV: test
+          CORS_ORIGIN: http://localhost:3000
+        run: npx vitest run --config vitest.integration.config.ts
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [typecheck, unit-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install
+      - run: pnpm --filter @deployforge/shared build
       - run: pnpm --filter api build
       - name: Build web
         env:
