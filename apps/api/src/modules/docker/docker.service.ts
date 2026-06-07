@@ -27,10 +27,14 @@ export class DockerService {
     try {
       await addLog('info', `Starting deploy of ${dockerImage}`)
 
-      // Pull image
-      await addLog('info', `Pulling image: ${dockerImage}`)
-      await dockerCmd('pull', dockerImage)
-      await addLog('info', 'Image pulled successfully')
+      // Pull image (skipped on restart to use the already-pulled image)
+      if (!isRestart) {
+        await addLog('info', `Pulling image: ${dockerImage}`)
+        await dockerCmd('pull', dockerImage)
+        await addLog('info', 'Image pulled successfully')
+      } else {
+        await addLog('info', `Restarting with existing image: ${dockerImage}`)
+      }
 
       // Stop + remove existing container if present
       try {
