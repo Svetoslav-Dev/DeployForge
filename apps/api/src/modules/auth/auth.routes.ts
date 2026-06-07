@@ -53,7 +53,9 @@ export async function authRoutes(app: FastifyInstance) {
   // Login — rate limited to 5 attempts per 15 minutes per IP
   app.post('/auth/login', {
     config: {
-      rateLimit: { max: 5, timeWindow: '15 minutes' },
+      rateLimit: app.config.NODE_ENV === 'test'
+        ? false
+        : { max: 5, timeWindow: '15 minutes' },
     },
   }, async (req, reply) => {
     const parsed = loginSchema.safeParse(req.body)
