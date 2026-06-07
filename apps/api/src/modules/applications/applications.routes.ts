@@ -52,6 +52,9 @@ export async function applicationsRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Params: { id: string } }>('/applications/:id/deploy', async (req, reply) => {
+    if ((req.user as { role: string }).role !== 'admin') {
+      return reply.status(403).send({ error: 'Admin only' })
+    }
     try {
       const application = await svc.get(req.params.id)
       const deployment = await deploySvc.trigger(application, 'manual')
@@ -63,6 +66,9 @@ export async function applicationsRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Params: { id: string } }>('/applications/:id/stop', async (req, reply) => {
+    if ((req.user as { role: string }).role !== 'admin') {
+      return reply.status(403).send({ error: 'Admin only' })
+    }
     try {
       const application = await svc.get(req.params.id)
       const result = await deploySvc.stop(application)
@@ -73,6 +79,9 @@ export async function applicationsRoutes(app: FastifyInstance) {
   })
 
   app.post<{ Params: { id: string } }>('/applications/:id/restart', async (req, reply) => {
+    if ((req.user as { role: string }).role !== 'admin') {
+      return reply.status(403).send({ error: 'Admin only' })
+    }
     try {
       const application = await svc.get(req.params.id)
       const deployment = await deploySvc.trigger(application, 'manual', true)

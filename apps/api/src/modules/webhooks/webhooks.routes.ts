@@ -16,9 +16,7 @@ export async function webhooksRoutes(app: FastifyInstance) {
 
   app.post<{ Params: { applicationId: string } }>(
     '/webhooks/github/:applicationId',
-    {
-      config: { rawBody: true },
-    },
+    {},
     async (req, reply) => {
       const { applicationId } = req.params
       const signature = req.headers['x-hub-signature-256'] as string | undefined
