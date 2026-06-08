@@ -21,6 +21,7 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - run: pnpm --filter @deployforge/shared build
+      - run: pnpm --filter api db:generate
       - run: pnpm --filter api typecheck
       - run: pnpm --filter web typecheck
 
@@ -38,6 +39,7 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - run: pnpm --filter @deployforge/shared build
+      - run: pnpm --filter api db:generate
       - run: pnpm --filter api lint
       - run: pnpm --filter web lint
 
@@ -55,6 +57,7 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - run: pnpm --filter @deployforge/shared build
+      - run: pnpm --filter api db:generate
       - name: API unit tests
         run: pnpm --filter api test
       - name: Web unit tests
@@ -87,6 +90,7 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install
+      - run: pnpm --filter api db:generate
       - name: Run Prisma migrations
         working-directory: apps/api
         env:
@@ -99,6 +103,7 @@ jobs:
           PORT: 4001
           NODE_ENV: test
           CORS_ORIGIN: http://localhost:3000
+          JWT_SECRET: integration-test-secret
         run: npx vitest run --config vitest.integration.config.ts
 
   build:
@@ -116,6 +121,7 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - run: pnpm --filter @deployforge/shared build
+      - run: pnpm --filter api db:generate
       - run: pnpm --filter api build
       - name: Build web
         env:
