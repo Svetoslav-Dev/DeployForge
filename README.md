@@ -102,6 +102,85 @@ apps/web/src/
 
 ---
 
+## How It Works
+
+### System flow
+
+```text
+Browser
+  |
+  v
+Next.js dashboard
+  |
+  | HTTP requests with httpOnly authentication cookies
+  v
+Fastify API
+  |-- Prisma --> PostgreSQL
+  `-- Docker CLI --> Docker daemon --> Managed containers
+```
+
+The Next.js application renders the dashboard and sends typed requests to the Fastify API. Fastify validates requests, applies authentication and role checks, persists state through Prisma, and invokes Docker through fixed command templates.
+
+The API container mounts `/var/run/docker.sock`, which lets its Docker CLI communicate with the host Docker daemon. DeployForge therefore manages sibling containers on the host rather than starting Docker inside Docker.
+
+### Authentication flow
+
+1. The browser sends a username and password to `POST /api/auth/login`.
+2. The API validates the request and compares the password with its bcrypt hash.
+3. The login attempt is recorded with its result, IP address, and browser metadata.
+4. A successful login returns a one-hour access token and a seven-day refresh token as httpOnly cookies.
+5. Protected API requests pass through a global JWT verification hook.
+6. When an access token expires, the browser uses the refresh cookie to rotate both tokens and retry the request.
+
+Only a SHA-256 hash of each refresh token is stored in PostgreSQL. Logout revokes the stored token and clears both cookies.
+
+### Application and deployment flow
+
+An `Application` stores the desired Docker configuration: image, container name, port mapping, environment variables, status, and optional webhook secret.
+
+When an administrator selects **Deploy**:
+
+```text
+POST /api/applications/:id/deploy
+  |
+  |-- create a pending Deployment record
+  |-- set the Application status to deploying
+  |-- return HTTP 202 immediately
+  `-- continue the Docker work asynchronously
+```
+
+The background deployment then:
+
+1. Pulls the configured image.
+2. Stops and removes a container with the configured name when one exists.
+3. Starts the replacement container with its port mapping, environment, and restart policy.
+4. Stores a structured log entry for each deployment step.
+5. Marks the deployment `success` and the application `running`.
+
+If a Docker operation fails, the deployment becomes `failed`, the application becomes `error`, and the error is stored with the deployment logs. Restart follows the same flow but reuses the existing image instead of pulling it again. Stop calls `docker stop` and updates the application status.
+
+The HTTP request does not wait for Docker to finish. The frontend reads deployment history and ordered logs from PostgreSQL to show the result.
+
+### Docker command safety
+
+Docker operations use Node.js `execFile` with predefined argument arrays:
+
+```ts
+execFile('docker', ['run', '-d', '--name', containerName, dockerImage])
+```
+
+DeployForge does not pass a user-provided command string to a shell. Input is validated before values are inserted into the supported Docker argument templates.
+
+### GitHub webhook flow
+
+GitHub sends a request to `POST /api/webhooks/github/:applicationId`. The API finds the application, verifies `X-Hub-Signature-256` with its webhook secret, ignores non-push events, and starts the same deployment service used by a manual deployment. The resulting record uses the `webhook` trigger type.
+
+### Monitoring flow
+
+`GET /api/monitoring/summary` queries PostgreSQL and Docker concurrently. It combines application status counts, failed and recent deployments, and the number of containers returned by `docker ps` into the dashboard summary.
+
+---
+
 ## Data Model
 
 ```
@@ -252,7 +331,7 @@ Open `http://localhost:3000` — you will be redirected to `/login`.
 ## Running with Docker Compose (full stack)
 
 ```bash
-docker compose up --build
+JWT_SECRET="$(openssl rand -hex 32)" docker compose up --build
 ```
 
 | Service | URL |
@@ -261,7 +340,7 @@ docker compose up --build
 | API | http://localhost:3001 |
 | PostgreSQL | localhost:5432 |
 
-The API container mounts `/var/run/docker.sock` so it can manage containers on the host.
+Docker Compose passes `JWT_SECRET` to the API and mounts `/var/run/docker.sock` so the API can manage containers on the host. Keep the same secret when restarting the stack so existing access tokens remain valid.
 
 ---
 
