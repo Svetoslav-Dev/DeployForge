@@ -26,6 +26,7 @@ services:
       PORT: "3001"
       NODE_ENV: production
       CORS_ORIGIN: http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET before starting Docker Compose}
     ports:
       - "3001:3001"
     volumes:
